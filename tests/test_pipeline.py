@@ -41,10 +41,34 @@ def test_dataset_has_both_classes(dataset):
     assert counts.get(1, 0) > 50
 
 
+def test_descriptors_match_rdkit_reference_values_for_aspirin():
+    """A direct RDKit-vs-RDKit sanity check: compute_descriptors() must
+    agree exactly with RDKit's own descriptor functions called directly on
+    the same parsed molecule, and those values must match aspirin's
+    well-known real literature descriptor values (MW=180.16,
+    TPSA=63.6 A^2). This is the test that would fail immediately if
+    compute_descriptors() silently fell back to a proxy/approximation
+    instead of real RDKit."""
+    from rdkit import Chem
+    from rdkit.Chem import Crippen, Descriptors as RDDescriptors
+    from rdkit.Chem import rdMolDescriptors
+
+    aspirin_smiles = "CC(=O)Oc1ccccc1C(=O)O"
+    d = compute_descriptors(aspirin_smiles)
+    mol = Chem.MolFromSmiles(aspirin_smiles)
+
+    assert d.mol_weight == pytest.approx(RDDescriptors.MolWt(mol), abs=0.01)
+    assert d.logp == pytest.approx(Crippen.MolLogP(mol), abs=0.001)
+    assert d.tpsa == pytest.approx(rdMolDescriptors.CalcTPSA(mol), abs=0.01)
+    # Real literature/RDKit reference values for aspirin
+    assert d.mol_weight == pytest.approx(180.16, abs=0.1)
+    assert d.tpsa == pytest.approx(63.6, abs=0.1)
+    assert d.hbd == 1   # the carboxylic acid O-H
+    assert d.hba == 3   # RDKit's Lipinski NumHAcceptors for aspirin
+
+
 def test_descriptor_values_are_physically_reasonable():
-    # caffeine-like small aromatic molecule with ring N's should have
-    # a molecular weight in a sane small-molecule range
-    d = compute_descriptors("c1ccccc1OH")
+    d = compute_descriptors("c1ccc(O)cc1")  # phenol, a real valid molecule
     assert 50 < d.mol_weight < 300
     assert d.hbd >= 1  # has an OH
     assert d.tpsa > 0
@@ -52,7 +76,7 @@ def test_descriptor_values_are_physically_reasonable():
 
 def test_miscibility_relationship_is_monotonic():
     """Closer solubility parameters -> lower chi (more miscible)."""
-    d = compute_descriptors("c1ccccc1OHNH2")
+    d = compute_descriptors("c1ccc(O)c(N)c1")  # real valid molecule (amino-phenol-like)
     delta_drug = estimate_drug_delta(d)
     close_polymer = min(POLYMERS, key=lambda p: abs(p.delta - delta_drug))
     far_polymer = max(POLYMERS, key=lambda p: abs(p.delta - delta_drug))
@@ -105,6 +129,17 @@ def test_screening_reduction_is_meaningful(dataset, trained):
     reduction, per_drug_df, extra = screening_reduction(test_df, clf, FEATURE_COLS, le)
     assert 0.0 < extra["predicted_positive_reduction"] < 0.95
     assert extra["precision_of_tested_set"] > 0.5
+
+
+def test_all_generated_drug_smiles_are_rdkit_valid(dataset):
+    """Every molecule in the drug library must be a real, parseable
+    structure -- not just a string that superficially looks like SMILES."""
+    from rdkit import Chem
+
+    unique_smiles = dataset["smiles"].unique()
+    assert len(unique_smiles) >= 50
+    for smi in unique_smiles:
+        assert Chem.MolFromSmiles(smi) is not None, f"Invalid SMILES slipped through: {smi}"
 
 
 def test_feature_columns_present_in_dataset(dataset):

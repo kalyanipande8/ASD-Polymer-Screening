@@ -11,6 +11,7 @@ from sklearn.preprocessing import LabelEncoder
 
 FEATURE_COLS = [
     "mol_weight", "logp", "hbd", "hba", "tpsa",
+    "rotatable_bonds", "ring_count", "fraction_csp3",
     "delta_drug", "delta_polymer", "delta_diff", "chi",
     "hbond_complementarity", "polymer_tg", "polymer_enc",
 ]

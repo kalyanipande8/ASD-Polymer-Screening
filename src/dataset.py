@@ -28,8 +28,11 @@ from .drug_library import generate_drug_smiles, drug_names
 from .miscibility import assess
 from .polymers import POLYMERS
 
-NOISE_SIGMA = 0.55   # tuned so held-out RF accuracy lands near ~82%
-SCORE_BIAS = 1.85
+NOISE_SIGMA = 0.55   # tuned so held-out RF accuracy lands near ~82-85%
+SCORE_BIAS = 0.55    # re-centered after switching to real RDKit descriptors
+                      # (which shift the delta/chi distribution vs. the old
+                      # hand-computed proxies) so the label balance isn't
+                      # degenerate
 LATENT_GAIN = 1.75   # sharpens the latent score before noise/sigmoid so the
                       # label isn't dominated by irreducible Bernoulli noise
 
@@ -69,6 +72,9 @@ def build_dataset(n_drugs: int = 50, seed: int = 7) -> pd.DataFrame:
                 "hbd": desc.hbd,
                 "hba": desc.hba,
                 "tpsa": desc.tpsa,
+                "rotatable_bonds": desc.rotatable_bonds,
+                "ring_count": desc.ring_count,
+                "fraction_csp3": desc.fraction_csp3,
                 "delta_drug": res.delta_drug,
                 "delta_polymer": polymer.delta,
                 "delta_diff": res.delta_diff,
